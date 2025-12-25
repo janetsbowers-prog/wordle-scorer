@@ -38,55 +38,69 @@ class WordleScorer:
         img = cv2.imread(image_path)
         if img is None:
             raise ValueError("Could not load image")
+        
+        # Resize if image is too large (helps with processing)
+        height, width = img.shape[:2]
+        if width > 1200:
+            scale = 1200 / width
+            img = cv2.resize(img, (int(width * scale), int(height * scale)))
             
         # Convert to RGB for processing
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        
-        # Detect grid cells based on color regions
-        rows = []
-        
-        # Define color ranges in HSV for detection
-        # Green tiles
-        green_lower = np.array([35, 40, 40])
-        green_upper = np.array([85, 255, 255])
-        
-        # Yellow tiles  
-        yellow_lower = np.array([15, 100, 100])
-        yellow_upper = np.array([35, 255, 255])
-        
-        # Gray tiles (wrong letters)
-        gray_lower = np.array([0, 0, 40])
-        gray_upper = np.array([180, 50, 140])
-        
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        # More lenient color ranges for Wordle tiles
+        # Green tiles - wider range to catch different shades
+        green_lower = np.array([30, 30, 30])
+        green_upper = np.array([90, 255, 255])
+        
+        # Yellow/Gold tiles - wider range
+        yellow_lower = np.array([10, 80, 80])
+        yellow_upper = np.array([40, 255, 255])
+        
+        # Gray tiles - much wider range
+        gray_lower = np.array([0, 0, 30])
+        gray_upper = np.array([180, 80, 200])
         
         # Create masks for each color
         green_mask = cv2.inRange(hsv, green_lower, green_upper)
         yellow_mask = cv2.inRange(hsv, yellow_lower, yellow_upper)
         gray_mask = cv2.inRange(hsv, gray_lower, gray_upper)
         
-        # Find contours to identify individual cells
+        # Combine all masks
         combined_mask = cv2.bitwise_or(green_mask, yellow_mask)
         combined_mask = cv2.bitwise_or(combined_mask, gray_mask)
         
+        # Apply morphological operations to clean up the mask
+        kernel = np.ones((5,5), np.uint8)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+        
+        # Find contours
         contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        # Filter and sort contours by position
+        # Filter contours by size and aspect ratio
         cells = []
+        min_area = 500  # Minimum cell area in pixels
+        
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
+            area = w * h
+            aspect_ratio = w / h if h > 0 else 0
             
-            # Filter by size (cells should be roughly square and similar size)
-            if w > 20 and h > 20 and 0.7 < w/h < 1.3:
-                # Determine color
-                cell_roi = hsv[y:y+h, x:x+w]
+            # Filter: reasonable size and roughly square
+            if area > min_area and 0.6 < aspect_ratio < 1.4:
+                # Determine color by checking which mask has most pixels
+                cell_roi_hsv = hsv[y:y+h, x:x+w]
                 
-                green_pixels = cv2.inRange(cell_roi, green_lower, green_upper).sum()
-                yellow_pixels = cv2.inRange(cell_roi, yellow_lower, yellow_upper).sum()
+                green_pixels = cv2.inRange(cell_roi_hsv, green_lower, green_upper).sum()
+                yellow_pixels = cv2.inRange(cell_roi_hsv, yellow_lower, yellow_upper).sum()
+                gray_pixels = cv2.inRange(cell_roi_hsv, gray_lower, gray_upper).sum()
                 
-                if green_pixels > yellow_pixels:
+                # Determine dominant color
+                if green_pixels > yellow_pixels and green_pixels > gray_pixels:
                     color = 'green'
-                elif yellow_pixels > 0:
+                elif yellow_pixels > gray_pixels:
                     color = 'yellow'
                 else:
                     color = 'gray'
@@ -99,18 +113,40 @@ class WordleScorer:
                     cells.append({
                         'x': x,
                         'y': y,
+                        'w': w,
+                        'h': h,
                         'letter': letter,
                         'color': color
                     })
         
-        # Sort cells into rows (top to bottom, left to right)
+        if len(cells) < 10:  # Need at least 2 rows worth
+            return []
+        
+        # Sort cells by position (top to bottom, left to right)
         cells.sort(key=lambda c: (c['y'], c['x']))
         
-        # Group into rows of 5
-        for i in range(0, len(cells), 5):
-            row = cells[i:i+5]
-            if len(row) == 5:
-                rows.append(row)
+        # Group into rows - use Y-coordinate clustering
+        rows = []
+        current_row = []
+        last_y = cells[0]['y'] if cells else 0
+        y_threshold = 20  # Pixels tolerance for same row
+        
+        for cell in cells:
+            if abs(cell['y'] - last_y) > y_threshold and current_row:
+                # New row detected
+                if len(current_row) == 5:  # Valid Wordle row
+                    # Sort current row by x coordinate
+                    current_row.sort(key=lambda c: c['x'])
+                    rows.append(current_row)
+                current_row = [cell]
+                last_y = cell['y']
+            else:
+                current_row.append(cell)
+                
+        # Don't forget the last row
+        if len(current_row) == 5:
+            current_row.sort(key=lambda c: c['x'])
+            rows.append(current_row)
                 
         return rows
     
@@ -119,16 +155,28 @@ class WordleScorer:
         # Preprocess for better OCR
         gray = cv2.cvtColor(cell_img, cv2.COLOR_RGB2GRAY)
         
-        # Threshold to get white letters
-        _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+        # Try multiple thresholding techniques
+        # Method 1: Simple threshold
+        _, thresh1 = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
         
-        # Use pytesseract with config for single uppercase letter
+        # Method 2: Adaptive threshold
+        thresh2 = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                       cv2.THRESH_BINARY, 11, 2)
+        
+        # Method 3: Otsu's threshold
+        _, thresh3 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Try OCR on all three versions
         config = '--psm 10 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-        text = pytesseract.image_to_string(thresh, config=config).strip()
         
-        # Return first letter if valid
-        if text and len(text) >= 1 and text[0].isalpha():
-            return text[0].upper()
+        for thresh in [thresh1, thresh2, thresh3]:
+            try:
+                text = pytesseract.image_to_string(thresh, config=config).strip()
+                if text and len(text) >= 1 and text[0].isalpha():
+                    return text[0].upper()
+            except:
+                continue
+                
         return None
     
     def calculate_score(self, rows: List[List[Dict]]) -> Dict:
@@ -201,7 +249,7 @@ class WordleScorer:
             if not rows:
                 return {
                     'success': False,
-                    'error': 'Could not detect Wordle grid in image'
+                    'error': 'Could not detect Wordle grid in image. Please ensure the image clearly shows the Wordle game board.'
                 }
                 
             result = self.calculate_score(rows)
@@ -210,7 +258,7 @@ class WordleScorer:
         except Exception as e:
             return {
                 'success': False,
-                'error': str(e)
+                'error': f'Error processing image: {str(e)}'
             }
 
 
