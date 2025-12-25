@@ -22,6 +22,15 @@ SCORING = {
 }
 CONVERSION_BONUS = 1
 
+# Common OCR misreads for Wordle letters
+OCR_CORRECTIONS = {
+    '0': 'O',  # Zero to O
+    '1': 'I',  # One to I
+    '8': 'B',  # Eight to B
+    '5': 'S',  # Five to S
+    '6': 'G',  # Six to G
+}
+
 
 class WordleScorer:
     """Analyzes Wordle game board images and calculates scores"""
@@ -39,28 +48,29 @@ class WordleScorer:
         if img is None:
             raise ValueError("Could not load image")
         
-        # Resize if image is too large (helps with processing)
+        # Resize if image is too large or too small
         height, width = img.shape[:2]
-        if width > 1200:
-            scale = 1200 / width
-            img = cv2.resize(img, (int(width * scale), int(height * scale)))
+        target_width = 1000
+        if width != target_width:
+            scale = target_width / width
+            img = cv2.resize(img, (target_width, int(height * scale)))
             
         # Convert to RGB for processing
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         
-        # More lenient color ranges for Wordle tiles
-        # Green tiles - wider range to catch different shades
-        green_lower = np.array([30, 30, 30])
-        green_upper = np.array([90, 255, 255])
+        # Very wide color ranges to catch all Wordle tile variations
+        # Green tiles
+        green_lower = np.array([25, 20, 20])
+        green_upper = np.array([95, 255, 255])
         
-        # Yellow/Gold tiles - wider range
-        yellow_lower = np.array([10, 80, 80])
-        yellow_upper = np.array([40, 255, 255])
+        # Yellow/Gold tiles
+        yellow_lower = np.array([8, 60, 60])
+        yellow_upper = np.array([45, 255, 255])
         
-        # Gray tiles - much wider range
-        gray_lower = np.array([0, 0, 30])
-        gray_upper = np.array([180, 80, 200])
+        # Gray tiles (very permissive)
+        gray_lower = np.array([0, 0, 20])
+        gray_upper = np.array([180, 100, 220])
         
         # Create masks for each color
         green_mask = cv2.inRange(hsv, green_lower, green_upper)
@@ -71,26 +81,29 @@ class WordleScorer:
         combined_mask = cv2.bitwise_or(green_mask, yellow_mask)
         combined_mask = cv2.bitwise_or(combined_mask, gray_mask)
         
-        # Apply morphological operations to clean up the mask
-        kernel = np.ones((5,5), np.uint8)
+        # Apply morphological operations to clean up
+        kernel = np.ones((7,7), np.uint8)
         combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
         combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
         
         # Find contours
         contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        # Filter contours by size and aspect ratio
+        # Calculate expected cell size based on image dimensions
+        expected_cell_size = width / 6  # Rough estimate
+        min_area = (expected_cell_size * 0.3) ** 2
+        max_area = (expected_cell_size * 2) ** 2
+        
         cells = []
-        min_area = 500  # Minimum cell area in pixels
         
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
             area = w * h
             aspect_ratio = w / h if h > 0 else 0
             
-            # Filter: reasonable size and roughly square
-            if area > min_area and 0.6 < aspect_ratio < 1.4:
-                # Determine color by checking which mask has most pixels
+            # Filter: reasonable size and aspect ratio
+            if min_area < area < max_area and 0.5 < aspect_ratio < 1.5:
+                # Determine color
                 cell_roi_hsv = hsv[y:y+h, x:x+w]
                 
                 green_pixels = cv2.inRange(cell_roi_hsv, green_lower, green_upper).sum()
@@ -98,9 +111,13 @@ class WordleScorer:
                 gray_pixels = cv2.inRange(cell_roi_hsv, gray_lower, gray_upper).sum()
                 
                 # Determine dominant color
-                if green_pixels > yellow_pixels and green_pixels > gray_pixels:
+                total = green_pixels + yellow_pixels + gray_pixels
+                if total == 0:
+                    continue
+                    
+                if green_pixels / total > 0.15:  # At least 15% green
                     color = 'green'
-                elif yellow_pixels > gray_pixels:
+                elif yellow_pixels / total > 0.15:  # At least 15% yellow
                     color = 'yellow'
                 else:
                     color = 'gray'
@@ -119,65 +136,123 @@ class WordleScorer:
                         'color': color
                     })
         
-        if len(cells) < 10:  # Need at least 2 rows worth
+        if len(cells) < 5:  # Need at least 1 row
             return []
         
-        # Sort cells by position (top to bottom, left to right)
+        # Sort cells by position
         cells.sort(key=lambda c: (c['y'], c['x']))
         
-        # Group into rows - use Y-coordinate clustering
+        # Group into rows using clustering
         rows = []
         current_row = []
+        
+        # Calculate average cell height
+        avg_height = np.mean([c['h'] for c in cells])
+        y_threshold = avg_height * 0.4  # 40% of cell height
+        
         last_y = cells[0]['y'] if cells else 0
-        y_threshold = 20  # Pixels tolerance for same row
         
         for cell in cells:
             if abs(cell['y'] - last_y) > y_threshold and current_row:
-                # New row detected
-                if len(current_row) == 5:  # Valid Wordle row
-                    # Sort current row by x coordinate
+                # New row
+                if len(current_row) == 5:
                     current_row.sort(key=lambda c: c['x'])
                     rows.append(current_row)
+                elif len(current_row) > 0:
+                    # Try to pad the row if it's close to 5
+                    current_row.sort(key=lambda c: c['x'])
+                    if len(current_row) >= 3:  # At least 3 letters
+                        rows.append(current_row)
+                        
                 current_row = [cell]
                 last_y = cell['y']
             else:
                 current_row.append(cell)
+                last_y = max(last_y, cell['y'])
                 
         # Don't forget the last row
         if len(current_row) == 5:
+            current_row.sort(key=lambda c: c['x'])
+            rows.append(current_row)
+        elif len(current_row) >= 3:
             current_row.sort(key=lambda c: c['x'])
             rows.append(current_row)
                 
         return rows
     
     def _extract_letter(self, cell_img: np.ndarray) -> Optional[str]:
-        """Extract letter from cell image using OCR"""
-        # Preprocess for better OCR
+        """Extract letter from cell image using OCR with error correction"""
+        
+        # Increase cell image size for better OCR
+        scale_factor = 3
+        cell_img = cv2.resize(cell_img, 
+                             (cell_img.shape[1] * scale_factor, 
+                              cell_img.shape[0] * scale_factor))
+        
+        # Convert to grayscale
         gray = cv2.cvtColor(cell_img, cv2.COLOR_RGB2GRAY)
         
-        # Try multiple thresholding techniques
-        # Method 1: Simple threshold
-        _, thresh1 = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+        # Apply Gaussian blur to reduce noise
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
         
-        # Method 2: Adaptive threshold
-        thresh2 = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-                                       cv2.THRESH_BINARY, 11, 2)
+        # Try multiple preprocessing techniques
+        techniques = []
         
-        # Method 3: Otsu's threshold
-        _, thresh3 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # 1. Simple binary threshold (inverted - white text on dark)
+        _, thresh1 = cv2.threshold(gray, 140, 255, cv2.THRESH_BINARY_INV)
+        techniques.append(thresh1)
         
-        # Try OCR on all three versions
-        config = '--psm 10 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        # 2. Adaptive threshold
+        thresh2 = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY_INV, 11, 2)
+        techniques.append(thresh2)
         
-        for thresh in [thresh1, thresh2, thresh3]:
+        # 3. Otsu's threshold
+        _, thresh3 = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        techniques.append(thresh3)
+        
+        # 4. Try with morphological operations
+        kernel = np.ones((2,2), np.uint8)
+        thresh4 = cv2.morphologyEx(thresh1, cv2.MORPH_CLOSE, kernel)
+        techniques.append(thresh4)
+        
+        # Try OCR on all techniques
+        config = '--psm 10 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+        
+        best_letter = None
+        best_confidence = 0
+        
+        for thresh in techniques:
             try:
-                text = pytesseract.image_to_string(thresh, config=config).strip()
-                if text and len(text) >= 1 and text[0].isalpha():
-                    return text[0].upper()
-            except:
-                continue
+                # Get detailed OCR data
+                data = pytesseract.image_to_data(thresh, config=config, output_type=pytesseract.Output.DICT)
                 
-        return None
+                for i, text in enumerate(data['text']):
+                    if text.strip():
+                        conf = int(data['conf'][i])
+                        letter = text.strip()[0].upper()
+                        
+                        # Apply corrections for common OCR mistakes
+                        if letter in OCR_CORRECTIONS:
+                            letter = OCR_CORRECTIONS[letter]
+                        
+                        if letter.isalpha() and conf > best_confidence:
+                            best_letter = letter
+                            best_confidence = conf
+            except:
+                # If detailed data fails, try simple string extraction
+                try:
+                    text = pytesseract.image_to_string(thresh, config=config).strip()
+                    if text and len(text) >= 1:
+                        letter = text[0].upper()
+                        if letter in OCR_CORRECTIONS:
+                            letter = OCR_CORRECTIONS[letter]
+                        if letter.isalpha():
+                            return letter
+                except:
+                    continue
+        
+        return best_letter
     
     def calculate_score(self, rows: List[List[Dict]]) -> Dict:
         """
@@ -188,6 +263,9 @@ class WordleScorer:
         letter_scores = []
         
         for row_idx, row in enumerate(rows, 1):
+            if row_idx > 6:  # Max 6 rows in Wordle
+                break
+                
             for cell in row:
                 letter = cell['letter']
                 color = cell['color']
@@ -199,7 +277,7 @@ class WordleScorer:
                 # Track letter's first appearance
                 if letter not in self.letter_history:
                     # First time seeing this letter
-                    base_points = SCORING[row_idx][color]
+                    base_points = SCORING.get(row_idx, {'green': 4, 'yellow': 0})[color]
                     
                     self.letter_history[letter] = {
                         'row': row_idx,
@@ -249,7 +327,7 @@ class WordleScorer:
             if not rows:
                 return {
                     'success': False,
-                    'error': 'Could not detect Wordle grid in image. Please ensure the image clearly shows the Wordle game board.'
+                    'error': 'Could not detect Wordle grid in image. Please ensure the image clearly shows the Wordle game board with letters visible.'
                 }
                 
             result = self.calculate_score(rows)
