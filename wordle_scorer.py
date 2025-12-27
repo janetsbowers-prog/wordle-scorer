@@ -31,6 +31,17 @@ OCR_CORRECTIONS = {
     '6': 'G',  # Six to G
 }
 
+# Context-based corrections for similar looking letters
+# When OCR is uncertain, these are common confusions in Wordle context
+SIMILAR_LETTERS = {
+    'O': ['D', 'Q', '0'],  # O can be confused with D, Q, or 0
+    'I': ['L', '1', 'l'],  # I can be confused with L or 1
+    'U': ['Y', 'V'],       # U can be confused with Y or V
+    'Y': ['U', 'V'],       # Y can be confused with U or V
+    'B': ['8', 'R'],       # B can be confused with 8 or R
+    'S': ['5'],            # S can be confused with 5
+}
+
 
 class WordleScorer:
     """Analyzes Wordle game board images and calculates scores"""
@@ -177,14 +188,77 @@ class WordleScorer:
         elif len(current_row) >= 3:
             current_row.sort(key=lambda c: c['x'])
             rows.append(current_row)
+        
+        # POST-PROCESSING: Try to fix rows that don't have exactly 5 cells
+        fixed_rows = []
+        for row in rows:
+            if len(row) == 5:
+                fixed_rows.append(row)
+            elif len(row) == 4:
+                # Missing one cell - check for close duplicates
+                # Look for cells that are very close together (might be duplicate letters)
+                row_with_gap = self._try_find_duplicate_letter(row, avg_height)
+                if len(row_with_gap) == 5:
+                    fixed_rows.append(row_with_gap)
+                else:
+                    fixed_rows.append(row)  # Keep as-is even if incomplete
+            elif len(row) > 5:
+                # Too many cells - might have detected duplicates separately
+                # Keep the 5 with best spacing
+                fixed_rows.append(self._filter_to_five_cells(row))
+            else:
+                fixed_rows.append(row)  # Keep partial rows for now
                 
-        return rows
+        return fixed_rows
+    
+    def _try_find_duplicate_letter(self, row: List[Dict], avg_height: float) -> List[Dict]:
+        """Try to find a missing duplicate letter by checking cell spacing"""
+        # If we have 4 cells, there might be a duplicate that looks like one cell
+        # Look for gaps in the X coordinates
+        if len(row) < 4:
+            return row
+            
+        x_positions = [c['x'] for c in row]
+        avg_gap = (x_positions[-1] - x_positions[0]) / (len(row) - 1) if len(row) > 1 else avg_height
+        
+        # Check for a gap larger than 1.5x average
+        for i in range(len(row) - 1):
+            gap = row[i+1]['x'] - (row[i]['x'] + row[i]['w'])
+            if gap > avg_gap * 1.5:
+                # Found a large gap - duplicate the previous letter
+                duplicate_cell = row[i].copy()
+                duplicate_cell['x'] = row[i]['x'] + row[i]['w'] + 5
+                row.insert(i+1, duplicate_cell)
+                return row
+                
+        return row
+    
+    def _filter_to_five_cells(self, row: List[Dict]) -> List[Dict]:
+        """If row has more than 5 cells, keep the 5 with best spacing"""
+        if len(row) <= 5:
+            return row
+            
+        # Keep cells with most uniform spacing
+        # Simple heuristic: remove cells that are very close to others
+        filtered = []
+        min_distance = 10  # Minimum pixels between cells
+        
+        for cell in row:
+            too_close = False
+            for existing in filtered:
+                if abs(cell['x'] - existing['x']) < min_distance:
+                    too_close = True
+                    break
+            if not too_close:
+                filtered.append(cell)
+                
+        return filtered[:5]  # Take first 5
     
     def _extract_letter(self, cell_img: np.ndarray) -> Optional[str]:
         """Extract letter from cell image using OCR with error correction"""
         
         # Increase cell image size for better OCR
-        scale_factor = 3
+        scale_factor = 4  # Increased from 3
         cell_img = cv2.resize(cell_img, 
                              (cell_img.shape[1] * scale_factor, 
                               cell_img.shape[0] * scale_factor))
@@ -216,15 +290,15 @@ class WordleScorer:
         thresh4 = cv2.morphologyEx(thresh1, cv2.MORPH_CLOSE, kernel)
         techniques.append(thresh4)
         
-        # Try OCR on all techniques
-        config = '--psm 10 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+        # STRICT: Only uppercase letters A-Z
+        config = '--psm 10 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ'
         
         best_letter = None
         best_confidence = 0
         
         for thresh in techniques:
             try:
-                # Get detailed OCR data
+                # Get detailed OCR data with confidence
                 data = pytesseract.image_to_data(thresh, config=config, output_type=pytesseract.Output.DICT)
                 
                 for i, text in enumerate(data['text']):
@@ -232,11 +306,15 @@ class WordleScorer:
                         conf = int(data['conf'][i])
                         letter = text.strip()[0].upper()
                         
+                        # Only accept valid uppercase letters
+                        if not letter.isalpha() or not letter.isupper():
+                            continue
+                        
                         # Apply corrections for common OCR mistakes
                         if letter in OCR_CORRECTIONS:
                             letter = OCR_CORRECTIONS[letter]
                         
-                        if letter.isalpha() and conf > best_confidence:
+                        if conf > best_confidence:
                             best_letter = letter
                             best_confidence = conf
             except:
@@ -245,6 +323,11 @@ class WordleScorer:
                     text = pytesseract.image_to_string(thresh, config=config).strip()
                     if text and len(text) >= 1:
                         letter = text[0].upper()
+                        
+                        # Only accept valid uppercase letters
+                        if not letter.isalpha() or not letter.isupper():
+                            continue
+                            
                         if letter in OCR_CORRECTIONS:
                             letter = OCR_CORRECTIONS[letter]
                         if letter.isalpha():
