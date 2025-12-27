@@ -329,8 +329,25 @@ class WordleScorer:
                     'success': False,
                     'error': 'Could not detect Wordle grid in image. Please ensure the image clearly shows the Wordle game board with letters visible.'
                 }
+            
+            # Add debug information
+            debug_info = []
+            for idx, row in enumerate(rows, 1):
+                row_letters = [cell['letter'] for cell in row]
+                row_colors = [cell['color'] for cell in row]
+                debug_info.append({
+                    'row': idx,
+                    'letters': row_letters,
+                    'colors': row_colors,
+                    'count': len(row)
+                })
                 
             result = self.calculate_score(rows)
+            result['debug'] = {
+                'total_cells_detected': sum(len(row) for row in rows),
+                'rows_detected': len(rows),
+                'details': debug_info
+            }
             return result
             
         except Exception as e:
