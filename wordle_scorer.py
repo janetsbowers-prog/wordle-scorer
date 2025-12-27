@@ -91,8 +91,8 @@ class WordleScorer:
         
         # Calculate expected cell size based on image dimensions
         expected_cell_size = width / 6  # Rough estimate
-        min_area = (expected_cell_size * 0.3) ** 2
-        max_area = (expected_cell_size * 2) ** 2
+        min_area = (expected_cell_size * 0.2) ** 2  # Very lenient minimum
+        max_area = (expected_cell_size * 3) ** 2    # Very lenient maximum
         
         cells = []
         
@@ -101,8 +101,8 @@ class WordleScorer:
             area = w * h
             aspect_ratio = w / h if h > 0 else 0
             
-            # Filter: reasonable size and aspect ratio
-            if min_area < area < max_area and 0.5 < aspect_ratio < 1.5:
+            # Very lenient filter: reasonable size and aspect ratio
+            if min_area < area < max_area and 0.4 < aspect_ratio < 2.0:
                 # Determine color
                 cell_roi_hsv = hsv[y:y+h, x:x+w]
                 
@@ -115,9 +115,9 @@ class WordleScorer:
                 if total == 0:
                     continue
                     
-                if green_pixels / total > 0.15:  # At least 15% green
+                if green_pixels / total > 0.10:  # At least 10% green (more lenient)
                     color = 'green'
-                elif yellow_pixels / total > 0.15:  # At least 15% yellow
+                elif yellow_pixels / total > 0.10:  # At least 10% yellow (more lenient)
                     color = 'yellow'
                 else:
                     color = 'gray'
@@ -136,7 +136,7 @@ class WordleScorer:
                         'color': color
                     })
         
-        if len(cells) < 5:  # Need at least 1 row
+        if len(cells) < 3:  # Need at least 3 cells (very lenient)
             return []
         
         # Sort cells by position
