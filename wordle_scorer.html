@@ -363,7 +363,7 @@
             <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
                 Choose Image
             </button>
-            <input type="file" id="fileInput" accept="image/*">
+            <input type="file" id="fileInput" accept="image/*" capture="environment">
         </div>
 
         <div class="preview-section" id="previewSection">
@@ -475,7 +475,22 @@
             
             // Show letter breakdown
             const breakdown = document.getElementById('letterBreakdown');
-            breakdown.innerHTML = result.letters.map(letter => {
+            let html = '';
+            
+            // Add debug info if available
+            if (result.debug) {
+                html += `
+                    <div style="background: rgba(86,180,233,0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.85rem;">
+                        <strong style="color: var(--accent);">🔍 DEBUG INFO:</strong><br>
+                        Detected ${result.debug.total_cells_detected} cells in ${result.debug.rows_detected} rows<br><br>
+                        ${result.debug.details.map(d => 
+                            `Row ${d.row}: [${d.letters.join(', ')}] (${d.colors.join(', ')})`
+                        ).join('<br>')}
+                    </div>
+                `;
+            }
+            
+            html += result.letters.map(letter => {
                 const points = letter.totalPoints || letter.points;
                 const colorClass = letter.color === 'yellow' ? 'yellow' : '';
                 const conversionText = letter.conversion ? ` + 1 conversion` : '';
@@ -493,6 +508,7 @@
                 `;
             }).join('');
             
+            breakdown.innerHTML = html;
             resultsSection.classList.add('active');
         }
 
