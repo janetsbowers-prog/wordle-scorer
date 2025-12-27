@@ -483,9 +483,12 @@
                     <div style="background: rgba(86,180,233,0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.85rem;">
                         <strong style="color: var(--accent);">🔍 DEBUG INFO:</strong><br>
                         Detected ${result.debug.total_cells_detected} cells in ${result.debug.rows_detected} rows<br><br>
-                        ${result.debug.details.map(d => 
-                            `Row ${d.row}: [${d.letters.join(', ')}] (${d.colors.join(', ')})`
-                        ).join('<br>')}
+                        ${result.debug.details.map(d => {
+                            const validIcon = d.valid ? '✓' : '✗';
+                            const validColor = d.valid ? '#6aaa64' : '#c9b458';
+                            return `Row ${d.row}: [${d.letters.join(', ')}] = "${d.word}" <span style="color: ${validColor}">${validIcon}</span>`;
+                        }).join('<br>')}
+                        ${result.debug.corrections ? '<br><br><strong style="color: var(--wordle-yellow);">🔧 Auto-corrections:</strong><br>' + result.debug.corrections.join('<br>') : ''}
                     </div>
                 `;
             }
