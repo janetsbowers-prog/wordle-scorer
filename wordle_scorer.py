@@ -22,6 +22,62 @@ SCORING = {
 }
 CONVERSION_BONUS = 1
 
+# Common 5-letter Wordle words (subset of most common ones)
+VALID_WORDS = {
+    'ABOUT', 'ABOVE', 'ACUTE', 'ADMIT', 'ADOPT', 'ADULT', 'AFTER', 'AGAIN', 'AGENT', 'AGREE',
+    'AHEAD', 'ALARM', 'ALBUM', 'ALERT', 'ALIGN', 'ALIKE', 'ALIVE', 'ALLOW', 'ALONE', 'ALONG',
+    'ALTER', 'ANGEL', 'ANGER', 'ANGLE', 'ANGRY', 'APART', 'APPLE', 'APPLY', 'ARENA', 'ARGUE',
+    'ARISE', 'ARRAY', 'ASIDE', 'ASSET', 'AUDIO', 'AUDIT', 'AVOID', 'AWARD', 'AWARE', 'BADLY',
+    'BAKER', 'BASES', 'BASIC', 'BASIS', 'BEACH', 'BEGAN', 'BEGIN', 'BEING', 'BELOW', 'BENCH',
+    'BILLY', 'BIRTH', 'BLACK', 'BLAME', 'BLIND', 'BLOCK', 'BLOOD', 'BOARD', 'BOOST', 'BOOTH',
+    'BOUND', 'BRAIN', 'BRAND', 'BREAD', 'BREAK', 'BREED', 'BRIEF', 'BRING', 'BROAD', 'BROKE',
+    'BROWN', 'BUILD', 'BUILT', 'BUYER', 'CABLE', 'CALIF', 'CARRY', 'CATCH', 'CAUSE', 'CHAIN',
+    'CHAIR', 'CHART', 'CHASE', 'CHEAP', 'CHECK', 'CHEST', 'CHIEF', 'CHILD', 'CHINA', 'CHOSE',
+    'CIVIL', 'CLAIM', 'CLASS', 'CLEAN', 'CLEAR', 'CLICK', 'CLOCK', 'CLOSE', 'COACH', 'COAST',
+    'COULD', 'COUNT', 'COURT', 'COVER', 'CRACK', 'CRAFT', 'CRASH', 'CRAZY', 'CREAM', 'CRIME',
+    'CROSS', 'CROWD', 'CROWN', 'CRUDE', 'CYCLE', 'DAILY', 'DANCE', 'DATED', 'DEALT', 'DEATH',
+    'DEBUT', 'DELAY', 'DELTA', 'DENSE', 'DEPTH', 'DOING', 'DOUBT', 'DOZEN', 'DRAFT', 'DRAMA',
+    'DRANK', 'DRAWN', 'DREAM', 'DRESS', 'DRILL', 'DRINK', 'DRIVE', 'DROVE', 'DYING', 'EAGER',
+    'EARLY', 'EARTH', 'EIGHT', 'ELECT', 'ELITE', 'EMPTY', 'ENEMY', 'ENJOY', 'ENTER', 'ENTRY',
+    'EQUAL', 'ERROR', 'EVENT', 'EVERY', 'EXACT', 'EXIST', 'EXTRA', 'FAITH', 'FALSE', 'FAULT',
+    'FIBER', 'FIELD', 'FIFTH', 'FIFTY', 'FIGHT', 'FINAL', 'FIRST', 'FIXED', 'FLASH', 'FLEET',
+    'FLOOR', 'FLUID', 'FOCUS', 'FORCE', 'FORTH', 'FORTY', 'FORUM', 'FOUND', 'FRAME', 'FRANK',
+    'FRAUD', 'FRESH', 'FRONT', 'FRUIT', 'FULLY', 'FUNNY', 'GIANT', 'GIVEN', 'GLASS', 'GLINT',
+    'GLOBE', 'GOING', 'GRACE', 'GRADE', 'GRAND', 'GRANT', 'GRASS', 'GREAT', 'GREEN', 'GROSS',
+    'GROUP', 'GROWN', 'GUARD', 'GUESS', 'GUEST', 'GUIDE', 'HAPPY', 'HARRY', 'HEART', 'HEAVY',
+    'HENCE', 'HENRY', 'HORSE', 'HOTEL', 'HOUSE', 'HUMAN', 'IDEAL', 'IMAGE', 'INDEX', 'INNER',
+    'INPUT', 'ISSUE', 'JAPAN', 'JIMMY', 'JOINT', 'JONES', 'JUDGE', 'KNOWN', 'LABEL', 'LARGE',
+    'LASER', 'LATER', 'LAUGH', 'LAYER', 'LEARN', 'LEASE', 'LEAST', 'LEAVE', 'LEGAL', 'LEMON',
+    'LEVEL', 'LEWIS', 'LIGHT', 'LIMIT', 'LINKS', 'LIVES', 'LOCAL', 'LOGIC', 'LOOSE', 'LOWER',
+    'LUCKY', 'LUNCH', 'LYING', 'MAGIC', 'MAJOR', 'MAKER', 'MARCH', 'MARIA', 'MATCH', 'MAYBE',
+    'MAYOR', 'MEANT', 'MEDIA', 'METAL', 'MIGHT', 'MINOR', 'MINUS', 'MIXED', 'MODEL', 'MONEY',
+    'MONTH', 'MORAL', 'MOTOR', 'MOUNT', 'MOUSE', 'MOUTH', 'MOVIE', 'MUSIC', 'NEEDS', 'NEVER',
+    'NEWLY', 'NIGHT', 'NOISE', 'NORTH', 'NOTED', 'NOVEL', 'NURSE', 'OCCUR', 'OCEAN', 'OFFER',
+    'OFTEN', 'ORDER', 'OTHER', 'OUGHT', 'PAINT', 'PANEL', 'PAPER', 'PARTY', 'PEACE', 'PETER',
+    'PHASE', 'PHONE', 'PHOTO', 'PIECE', 'PILOT', 'PITCH', 'PLACE', 'PLAIN', 'PLANE', 'PLANT',
+    'PLATE', 'POINT', 'POUND', 'POWER', 'PRESS', 'PRICE', 'PRIDE', 'PRIME', 'PRINT', 'PRIOR',
+    'PRISM', 'PRIZE', 'PROOF', 'PROUD', 'PROVE', 'QUEEN', 'QUICK', 'QUIET', 'QUITE', 'RADIO',
+    'RAISE', 'RANGE', 'RAPID', 'RATIO', 'REACH', 'READY', 'REFER', 'RIGHT', 'RIVAL', 'RIVER',
+    'ROBIN', 'ROCKY', 'ROGER', 'ROMAN', 'ROUGH', 'ROUND', 'ROUTE', 'ROYAL', 'RURAL', 'SCALE',
+    'SCENE', 'SCOPE', 'SCORE', 'SENSE', 'SERVE', 'SEVEN', 'SHALL', 'SHAPE', 'SHARE', 'SHARP',
+    'SHEET', 'SHELF', 'SHELL', 'SHIFT', 'SHINE', 'SHIRT', 'SHOCK', 'SHOOT', 'SHORT', 'SHOWN',
+    'SIGHT', 'SINCE', 'SIXTH', 'SIXTY', 'SIZED', 'SKILL', 'SLEEP', 'SLIDE', 'SMALL', 'SMART',
+    'SMILE', 'SMITH', 'SMOKE', 'SOLID', 'SOLVE', 'SORRY', 'SOUND', 'SOUTH', 'SPACE', 'SPARE',
+    'SPEAK', 'SPEED', 'SPEND', 'SPENT', 'SPLIT', 'SPOKE', 'SPORT', 'STAFF', 'STAGE', 'STAKE',
+    'STAND', 'START', 'STATE', 'STEAM', 'STEEL', 'STICK', 'STILL', 'STOCK', 'STONE', 'STOOD',
+    'STORE', 'STORM', 'STORY', 'STRIP', 'STUCK', 'STUDY', 'STUFF', 'STYLE', 'SUGAR', 'SUITE',
+    'SUPER', 'SWEET', 'TABLE', 'TAKEN', 'TASTE', 'TAXES', 'TEACH', 'TERRY', 'TEXAS', 'THANK',
+    'THEFT', 'THEIR', 'THEME', 'THERE', 'THESE', 'THICK', 'THING', 'THINK', 'THIRD', 'THOSE',
+    'THREE', 'THREW', 'THROW', 'TIGHT', 'TIMES', 'TITLE', 'TODAY', 'TOPIC', 'TOTAL', 'TOUCH',
+    'TOUGH', 'TOWER', 'TRACK', 'TRADE', 'TRAIN', 'TRAIT', 'TREAT', 'TREND', 'TRIAL', 'TRIBE',
+    'TRICK', 'TRIED', 'TRIES', 'TROOP', 'TRUCK', 'TRULY', 'TRUNK', 'TRUST', 'TRUTH', 'TWICE',
+    'UNDER', 'UNDUE', 'UNION', 'UNITY', 'UNTIL', 'UPPER', 'URBAN', 'USAGE', 'USUAL', 'VALID',
+    'VALUE', 'VIDEO', 'VIRUS', 'VISIT', 'VITAL', 'VOCAL', 'VOICE', 'WASTE', 'WATCH', 'WATER',
+    'WHEEL', 'WHERE', 'WHICH', 'WHILE', 'WHITE', 'WHOLE', 'WHOSE', 'WOMAN', 'WOMEN', 'WORLD',
+    'WORRY', 'WORSE', 'WORST', 'WORTH', 'WOULD', 'WOUND', 'WRITE', 'WRONG', 'WROTE', 'YOUNG',
+    'YOUTH', 'CLOUT'
+}
+
 # Common OCR misreads for Wordle letters
 OCR_CORRECTIONS = {
     '0': 'O',  # Zero to O
@@ -49,6 +105,60 @@ class WordleScorer:
     def __init__(self):
         self.letter_history = {}  # Track first appearance and conversions
         
+    def _validate_and_correct_word(self, letters: List[str]) -> Tuple[List[str], bool]:
+        """
+        Validate if letters form a real word, and try corrections if not
+        Returns: (corrected_letters, was_corrected)
+        """
+        if len(letters) != 5:
+            return letters, False
+            
+        word = ''.join(letters).upper()
+        
+        # Check if it's already valid
+        if word in VALID_WORDS:
+            return letters, False
+        
+        # Try common substitutions for OCR errors
+        substitutions = {
+            'O': ['D', 'Q', '0'],
+            'I': ['L', '1'],
+            'U': ['V', 'Y'],
+            'Y': ['V', 'U'],
+            'S': ['5'],
+            'B': ['8'],
+        }
+        
+        # Try substituting each letter
+        for i, letter in enumerate(letters):
+            if letter in substitutions:
+                for replacement in substitutions[letter]:
+                    test_letters = letters.copy()
+                    test_letters[i] = replacement
+                    test_word = ''.join(test_letters).upper()
+                    if test_word in VALID_WORDS:
+                        return test_letters, True
+        
+        # Try reverse substitutions (D→O, L→I, etc.)
+        reverse_subs = {
+            'D': 'O', 'Q': 'O',
+            'L': 'I', '1': 'I',
+            'V': 'U',
+            '5': 'S',
+            '8': 'B'
+        }
+        
+        for i, letter in enumerate(letters):
+            if letter in reverse_subs:
+                test_letters = letters.copy()
+                test_letters[i] = reverse_subs[letter]
+                test_word = ''.join(test_letters).upper()
+                if test_word in VALID_WORDS:
+                    return test_letters, True
+        
+        # No valid correction found
+        return letters, False
+    
     def detect_cells(self, image_path: str) -> List[List[Dict]]:
         """
         Detect the 5x6 grid of Wordle cells and extract letter/color info
@@ -413,23 +523,41 @@ class WordleScorer:
                     'error': 'Could not detect Wordle grid in image. Please ensure the image clearly shows the Wordle game board with letters visible.'
                 }
             
-            # Add debug information
+            # Add debug information and word validation
             debug_info = []
+            corrections_made = []
+            
             for idx, row in enumerate(rows, 1):
                 row_letters = [cell['letter'] for cell in row]
                 row_colors = [cell['color'] for cell in row]
+                original_word = ''.join(row_letters)
+                
+                # Try to validate and correct the word
+                if len(row_letters) == 5:
+                    corrected_letters, was_corrected = self._validate_and_correct_word(row_letters)
+                    if was_corrected:
+                        corrected_word = ''.join(corrected_letters)
+                        corrections_made.append(f"Row {idx}: {original_word} → {corrected_word}")
+                        # Update the cells with corrected letters
+                        for i, cell in enumerate(row):
+                            cell['letter'] = corrected_letters[i]
+                        row_letters = corrected_letters
+                
                 debug_info.append({
                     'row': idx,
                     'letters': row_letters,
                     'colors': row_colors,
-                    'count': len(row)
+                    'count': len(row),
+                    'word': ''.join(row_letters),
+                    'valid': ''.join(row_letters).upper() in VALID_WORDS
                 })
                 
             result = self.calculate_score(rows)
             result['debug'] = {
                 'total_cells_detected': sum(len(row) for row in rows),
                 'rows_detected': len(rows),
-                'details': debug_info
+                'details': debug_info,
+                'corrections': corrections_made if corrections_made else None
             }
             return result
             
