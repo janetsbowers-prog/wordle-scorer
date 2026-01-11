@@ -1,1 +1,1 @@
-web: gunicorn app:app
+web: gunicorn wordle_scorer_vision:app
