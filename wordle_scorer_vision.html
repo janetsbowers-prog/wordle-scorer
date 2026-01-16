@@ -464,7 +464,13 @@
         function displayResults(result) {
             loading.classList.remove('active');
             
-            document.getElementById('totalScore').textContent = result.totalScore;
+            // Verify the math by summing letter points ourselves
+            const calculatedTotal = result.letters.reduce((sum, letter) => sum + letter.totalPoints, 0);
+            
+            // Use our calculated total instead of trusting the API
+            const finalScore = calculatedTotal;
+            
+            document.getElementById('totalScore').textContent = finalScore;
             
             const breakdown = document.getElementById('letterBreakdown');
             let html = result.letters.map(letter => {
